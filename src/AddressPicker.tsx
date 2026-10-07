@@ -1,0 +1,12 @@
+import { useEffect, useState } from 'react';
+import type { Values } from './validation';
+type Address={district:string;amphoe:string;province:string;zipcode:number};
+let cached:Promise<Address[]>|undefined;
+export default function AddressPicker({name,values,onChange,th,error}:{name:string;values:Values;onChange:(patch:Values)=>void;th:boolean;error:boolean}){
+ const [rows,setRows]=useState<Address[]>([]);const [open,setOpen]=useState(false);const [failed,setFailed]=useState(false);
+ useEffect(()=>{cached??=fetch('/thai-addresses.json').then(response=>{if(!response.ok)throw Error('Address data unavailable');return response.json();}).catch(error=>{cached=undefined;throw error;});cached.then(setRows).catch(()=>setFailed(true));},[]);
+ const key=name==='subdistrict'?'district':name==='district'?'amphoe':name==='postal'?'zipcode':'province';
+ const query=values[name]||'';
+ const matches=rows.filter(row=>String(row[key]).includes(query.trim())).slice(0,40);
+ return <div className="address-picker"><input id={`staff-${name}`} required autoComplete="off" value={query} placeholder={th?'พิมพ์เพื่อค้นหา':'Type to search'} aria-invalid={error} aria-describedby={error?`${name}-step-error`:undefined} onFocus={()=>setOpen(true)} onBlur={event=>{if(!document.getElementById(`address-options-${name}`)?.contains(event.relatedTarget))setOpen(false);}} onKeyDown={event=>{if(event.key==='Escape')setOpen(false);if(event.key==='ArrowDown'){event.preventDefault();document.querySelector<HTMLButtonElement>(`#address-options-${name} button`)?.focus();}}} onChange={event=>{onChange({[name]:event.target.value});setOpen(true);}}/>{open&&<div className="address-options" id={`address-options-${name}`} onBlur={event=>{if(!event.currentTarget.contains(event.relatedTarget))setOpen(false);}}>{matches.map((row,index)=><button type="button" key={`${row.district}-${row.amphoe}-${row.province}-${row.zipcode}-${index}`} onMouseDown={event=>event.preventDefault()} onClick={()=>{onChange({subdistrict:row.district,district:row.amphoe,province:row.province,postal:String(row.zipcode)});setOpen(false);document.getElementById(`staff-${name}`)?.focus();setOpen(false);}}><strong>{row.district}</strong><span>{row.amphoe} · {row.province} · {row.zipcode}</span></button>)}{matches.length===0&&<p>{failed?(th?'โหลดข้อมูลไม่ได้ กรุณาพิมพ์ที่อยู่เอง':'Unable to load suggestions. Enter your address manually.'):(th?'ไม่พบข้อมูลที่ตรงกัน สามารถพิมพ์เองได้':'No matching address. You can enter it manually.')}</p>}</div>}</div>;
+}
